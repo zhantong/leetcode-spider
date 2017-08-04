@@ -2,6 +2,7 @@ import urllib.request
 import http.cookiejar
 import json
 from lxml import etree
+import os
 
 
 class Extractor:
@@ -32,6 +33,20 @@ class Extractor:
         if not is_encoded:
             return html.decode('utf-8')
         return html
+
+    def extract(self, dir_path=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'descriptions')):
+        os.makedirs(dir_path, exist_ok=True)
+        problem_list = self.get_problem_list()
+        for problem in problem_list:
+            if problem['paid_only']:
+                continue
+            index = str(problem['stat']['question_id'])
+            title = problem['stat']['question__title']
+            slug = problem['stat']['question__title_slug']
+            description = self.get_description(slug)
+            file_path = os.path.join(dir_path, index.zfill(3) + '. ' + title + '.html')
+            with open(file_path, 'wb') as f:
+                f.write(description)
 
 
 if __name__ == '__main__':
