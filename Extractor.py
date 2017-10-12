@@ -3,6 +3,7 @@ import http.cookiejar
 import json
 from lxml import etree
 import os
+import concurrent.futures
 
 
 class Extractor:
@@ -34,21 +35,25 @@ class Extractor:
             return html.decode('utf-8')
         return html
 
-    def extract(self, dir_path=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'descriptions')):
+    def extract(self, problem, dir_path):
+        if problem['paid_only']:
+            return
+        index = str(problem['stat']['question_id'])
+        title = problem['stat']['question__title']
+        slug = problem['stat']['question__title_slug']
+        description = self.get_description(slug)
+        file_path = os.path.join(dir_path, index.zfill(3) + '. ' + title + '.html')
+        with open(file_path, 'wb') as f:
+            f.write(description)
+
+    def run(self, dir_path=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'descriptions'), max_workers=20):
         os.makedirs(dir_path, exist_ok=True)
         problem_list = self.get_problem_list()
-        for problem in problem_list:
-            if problem['paid_only']:
-                continue
-            index = str(problem['stat']['question_id'])
-            title = problem['stat']['question__title']
-            slug = problem['stat']['question__title_slug']
-            description = self.get_description(slug)
-            file_path = os.path.join(dir_path, index.zfill(3) + '. ' + title + '.html')
-            with open(file_path, 'wb') as f:
-                f.write(description)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for problem in problem_list:
+                executor.submit(self.extract, problem, dir_path)
 
 
 if __name__ == '__main__':
     extractor = Extractor()
-    problem_list = extractor.get_problem_list()
+    extractor.run()
