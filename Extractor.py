@@ -7,6 +7,7 @@ import os
 import concurrent.futures
 import re
 import sqlite3
+import codecs
 
 
 class Extractor:
@@ -89,6 +90,38 @@ class Extractor:
         conn.commit()
         conn.close()
 
+    def get_submission(self, url, file_path):
+        with self.opener.open(url) as f:
+            content = f.read().decode('utf-8')
+            code = re.findall("submissionCode:\s'(.*?)',", content)[0]
+            code = codecs.decode(code, 'unicode-escape')
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+        return file_path
+
+    def extract_submissions(self):
+        conn = sqlite3.connect('leetcode.db')
+        c = conn.cursor()
+        c.execute('SELECT url FROM submission WHERE downloaded=0')
+        urls = c.fetchall()
+        urls = [url[0] for url in urls]
+        dir_path = 'submissions/'
+        os.makedirs(dir_path, exist_ok=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(self.get_submission, 'https://www.leetcode.com' + url,
+                                       os.path.join(dir_path, url.split('/')[-2])): url for url in urls}
+            for future in concurrent.futures.as_completed(futures):
+                url = futures[future]
+                try:
+                    file_path = future.result()
+                except Exception as e:
+                    print('%r generated an exception: %s' % (url, e))
+                else:
+                    if file_path:
+                        c.execute('UPDATE submission SET downloaded=1,path=? WHERE url=?', (file_path, url))
+        conn.commit()
+        conn.close()
+
     def extract(self, problem, dir_path):
         if problem['paid_only']:
             return
@@ -110,4 +143,4 @@ class Extractor:
 
 if __name__ == '__main__':
     extractor = Extractor()
-    extractor.run()
+    extractor.extract_submissions()
