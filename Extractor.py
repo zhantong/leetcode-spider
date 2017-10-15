@@ -6,6 +6,7 @@ from lxml import etree
 import os
 import concurrent.futures
 import re
+import sqlite3
 
 
 class Extractor:
@@ -75,6 +76,18 @@ class Extractor:
             if not content['has_next']:
                 return result
             offset += LIMIT
+
+    def store_submission_list_to_db(self, submission_list):
+        conn = sqlite3.connect('leetcode.db')
+        c = conn.cursor()
+        c.execute(
+            'CREATE TABLE IF NOT EXISTS submission (lang TEXT,title TEXT,url TEXT,downloaded INTEGER DEFAULT 0,path TEXT,PRIMARY KEY(url))')
+        for submission in submission_list:
+            if submission['status_display'] == 'Accepted':
+                c.execute('INSERT OR IGNORE INTO submission (lang,title,url) VALUES (?,?,?)',
+                          (submission['lang'], submission['title'], submission['url']))
+        conn.commit()
+        conn.close()
 
     def extract(self, problem, dir_path):
         if problem['paid_only']:
