@@ -63,17 +63,43 @@ class Extractor:
         conn.commit()
         conn.close()
 
-    def get_description(self, slug, is_encoded=True):
-        url = self.base_url + 'problems/' + slug + '/description/'
-        print(url)
+    def get_description(self, url, file_path):
         with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
-        root = etree.HTML(content)
-        result = root.xpath('//*[@id="descriptionContent"]//div[@class="question-description"]')
-        html = etree.tostring(result[0], encoding='utf-8')
-        if not is_encoded:
-            return html.decode('utf-8')
-        return html
+            root = etree.HTML(content)
+            result = root.xpath('//*[@id="descriptionContent"]//div[@class="question-description"]')
+            html = etree.tostring(result[0], encoding='utf-8')
+            with open(file_path, 'wb') as f:
+                f.write(html)
+        return file_path
+
+    def extract_descriptions(self):
+        conn = sqlite3.connect('leetcode.db')
+        c = conn.cursor()
+        c.execute('CREATE TABLE IF NOT EXISTS description (title TEXT,path TEXT,PRIMARY KEY(title))')
+        c.execute(
+            'SELECT a.id,a.title,a.slug FROM problem a LEFT JOIN description b ON a.title=b.title WHERE a.paid=0 AND b.title IS NULL')
+        problems = c.fetchall()
+        dir_path = 'descriptions/'
+        os.makedirs(dir_path, exist_ok=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {
+                executor.submit(self.get_description,
+                                'https://www.leetcode.com/problems/' + problem[2] + '/description/',
+                                os.path.join(dir_path, str(problem[0]).zfill(3) + '. ' + problem[1] + '.html')):
+                    problem[1] for
+                problem in problems}
+            for future in concurrent.futures.as_completed(futures):
+                title = futures[future]
+                try:
+                    file_path = future.result()
+                except Exception as e:
+                    print('%r generated an exception: %s' % (title, e))
+                else:
+                    if file_path:
+                        c.execute('INSERT INTO description (title,path) VALUES (?,?)', (title, file_path))
+        conn.commit()
+        conn.close()
 
     def get_submission_list(self):
         if not self.is_logged_in:
@@ -181,25 +207,7 @@ class Extractor:
 
         conn.close()
 
-    def extract(self, problem, dir_path):
-        if problem['paid_only']:
-            return
-        index = str(problem['stat']['question_id'])
-        title = problem['stat']['question__title']
-        slug = problem['stat']['question__title_slug']
-        description = self.get_description(slug)
-        file_path = os.path.join(dir_path, index.zfill(3) + '. ' + title + '.html')
-        with open(file_path, 'wb') as f:
-            f.write(description)
-
-    def run(self, dir_path=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'descriptions'), max_workers=20):
-        os.makedirs(dir_path, exist_ok=True)
-        problem_list = self.get_problem_list()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for problem in problem_list:
-                executor.submit(self.extract, problem, dir_path)
-
 
 if __name__ == '__main__':
     extractor = Extractor()
-    extractor.store_problem_list_to_db(extractor.get_problem_list())
+    extractor.extract_descriptions()
