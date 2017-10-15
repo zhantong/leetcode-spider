@@ -83,7 +83,7 @@ class Extractor:
         conn = sqlite3.connect('leetcode.db')
         c = conn.cursor()
         c.execute(
-            'CREATE TABLE IF NOT EXISTS submission (lang TEXT,title TEXT,url TEXT,downloaded INTEGER DEFAULT 0,path TEXT,PRIMARY KEY(url))')
+            'CREATE TABLE IF NOT EXISTS submission (lang TEXT,title TEXT,url TEXT,downloaded INTEGER DEFAULT 0,path TEXT,removed INTEGER DEFAULT 0,PRIMARY KEY(url))')
         for submission in submission_list:
             if submission['status_display'] == 'Accepted':
                 c.execute('INSERT OR IGNORE INTO submission (lang,title,url) VALUES (?,?,?)',
@@ -103,7 +103,7 @@ class Extractor:
     def extract_submissions(self):
         conn = sqlite3.connect('leetcode.db')
         c = conn.cursor()
-        c.execute('SELECT url FROM submission WHERE downloaded=0')
+        c.execute('SELECT url FROM submission WHERE downloaded=0 AND removed=0')
         urls = c.fetchall()
         urls = [url[0] for url in urls]
         dir_path = 'submissions/'
@@ -143,21 +143,22 @@ class Extractor:
         os.makedirs(dir_path, exist_ok=True)
         conn = sqlite3.connect('leetcode.db')
         c = conn.cursor()
-        c.execute('SELECT title FROM submission WHERE downloaded=1 GROUP BY title')
+        c.execute('SELECT title FROM submission WHERE downloaded=1 AND removed=0 GROUP BY title')
         titles = c.fetchall()
         titles = [title[0] for title in titles]
         print(titles)
         for title in titles:
             problem_dir = os.path.join(dir_path, title)
             os.makedirs(problem_dir, exist_ok=True)
-            c.execute('SELECT lang FROM submission WHERE downloaded=1 AND title=?', (title,))
+            c.execute('SELECT lang FROM submission WHERE downloaded=1 AND removed=0 AND title=?', (title,))
             langs = c.fetchall()
             langs = [lang[0] for lang in langs]
             for lang in langs:
                 current_dir = os.path.join(problem_dir, lang_to_language(lang))
                 os.makedirs(current_dir, exist_ok=True)
-                c.execute('SELECT path FROM submission WHERE downloaded=1 AND title=? AND lang=? ORDER BY url',
-                          (title, lang))
+                c.execute(
+                    'SELECT path FROM submission WHERE downloaded=1 AND removed=0 AND title=? AND lang=? ORDER BY url',
+                    (title, lang))
                 orig_file_paths = c.fetchall()
                 orig_file_paths = [orig_file_path[0] for orig_file_path in orig_file_paths]
                 shutil.copyfile(orig_file_paths[0], os.path.join(current_dir, 'Submission' + lang_to_extension(lang)))

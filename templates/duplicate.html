@@ -6,6 +6,7 @@
         <th>url</th>
         <th>path</th>
         <th>view</th>
+        <th>delete</th>
     </tr>
     {% for problem in problems %}
     <tr>
@@ -14,6 +15,12 @@
         <td>{{ problem['url'] }}</td>
         <td>{{ problem['path'] }}</td>
         <td><a href="view/{{ problem['path'] }}">查看</a></td>
+        <td>
+            <form action="remove" method="post">
+                <input type="hidden" name="url" value="{{ problem['url'] }}">
+                <input type="submit" value="删除">
+            </form>
+        </td>
     </tr>
     {% endfor %}
 </table>

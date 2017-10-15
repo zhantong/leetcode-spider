@@ -1,4 +1,4 @@
-from flask import Flask, render_template, make_response
+from flask import Flask, render_template, make_response, request, redirect
 import sqlite3
 
 app = Flask(__name__)
@@ -17,7 +17,7 @@ def main():
     conn.row_factory = dict_factory
     c = conn.cursor()
     c.execute(
-        'SELECT lang,title,url,path FROM submission a WHERE EXISTS(SELECT 1 FROM submission b WHERE a.lang=b.lang AND a.title=b.title GROUP BY lang,title HAVING COUNT(lang)>1) ORDER BY lang,title')
+        'SELECT lang,title,url,path FROM submission a WHERE EXISTS(SELECT 1 FROM submission b WHERE b.downloaded=1 AND b.removed=0 AND a.lang=b.lang AND a.title=b.title GROUP BY lang,title HAVING COUNT(lang)>1) ORDER BY lang,title')
     problems = c.fetchall()
     conn.close()
     return render_template('duplicate.html', problems=problems)
@@ -30,6 +30,17 @@ def view(path=None):
     response = make_response(content)
     response.headers['content-type'] = 'text/plain'
     return response
+
+
+@app.route('/remove', methods=['POST'])
+def remove():
+    url = request.form['url']
+    conn = sqlite3.connect('leetcode.db')
+    c = conn.cursor()
+    c.execute('UPDATE submission SET removed=1 WHERE url=?', (url,))
+    conn.commit()
+    conn.close()
+    return redirect('/')
 
 
 if __name__ == '__main__':
