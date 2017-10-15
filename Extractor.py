@@ -50,6 +50,19 @@ class Extractor:
         content = json.loads(content)
         return content['stat_status_pairs']
 
+    def store_problem_list_to_db(self, problem_list):
+        conn = sqlite3.connect('leetcode.db')
+        c = conn.cursor()
+        c.execute(
+            'CREATE TABLE IF NOT EXISTS problem (id INTEGER,title TEXT,slug TEXT,level INTEGER,paid INTEGER,discuss_id INTEGER,discuss_solution_id INTEGER,PRIMARY KEY(id))')
+        for problem in problem_list:
+            c.execute('INSERT OR IGNORE INTO problem (id,title,slug,level,paid) VALUES (?,?,?,?,?)'
+                      , (problem['stat']['question_id'], problem['stat']['question__title']
+                         , problem['stat']['question__title_slug'], problem['difficulty']['level'],
+                         1 if problem['paid_only'] else 0))
+        conn.commit()
+        conn.close()
+
     def get_description(self, slug, is_encoded=True):
         url = self.base_url + 'problems/' + slug + '/description/'
         print(url)
@@ -189,4 +202,4 @@ class Extractor:
 
 if __name__ == '__main__':
     extractor = Extractor()
-    extractor.output_submissions()
+    extractor.store_problem_list_to_db(extractor.get_problem_list())
