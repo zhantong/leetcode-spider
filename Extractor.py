@@ -29,7 +29,7 @@ class Extractor:
         with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
         root = etree.HTML(content)
-        result = root.xpath('//*[@id="descriptionContent"]/div[1]/div/div[2]')
+        result = root.xpath('//*[@id="descriptionContent"]//div[@class="question-description"]')
         html = etree.tostring(result[0], encoding='utf-8')
         if not is_encoded:
             return html.decode('utf-8')
