@@ -8,6 +8,7 @@ import concurrent.futures
 import re
 import sqlite3
 import codecs
+import shutil
 
 
 class Extractor:
@@ -122,6 +123,50 @@ class Extractor:
         conn.commit()
         conn.close()
 
+    def output_submissions(self, dir_path='out_submissions/'):
+        def lang_to_language(lang):
+            if lang == 'python' or lang == 'python3':
+                return 'Python'
+            if lang == 'java':
+                return 'Java'
+            if lang == 'cpp':
+                return 'C++'
+
+        def lang_to_extension(lang):
+            if lang == 'python' or lang == 'python3':
+                return '.py'
+            if lang == 'java':
+                return '.java'
+            if lang == 'cpp':
+                return '.cpp'
+
+        os.makedirs(dir_path, exist_ok=True)
+        conn = sqlite3.connect('leetcode.db')
+        c = conn.cursor()
+        c.execute('SELECT title FROM submission WHERE downloaded=1 GROUP BY title')
+        titles = c.fetchall()
+        titles = [title[0] for title in titles]
+        print(titles)
+        for title in titles:
+            problem_dir = os.path.join(dir_path, title)
+            os.makedirs(problem_dir, exist_ok=True)
+            c.execute('SELECT lang FROM submission WHERE downloaded=1 AND title=?', (title,))
+            langs = c.fetchall()
+            langs = [lang[0] for lang in langs]
+            for lang in langs:
+                current_dir = os.path.join(problem_dir, lang_to_language(lang))
+                os.makedirs(current_dir, exist_ok=True)
+                c.execute('SELECT path FROM submission WHERE downloaded=1 AND title=? AND lang=? ORDER BY url',
+                          (title, lang))
+                orig_file_paths = c.fetchall()
+                orig_file_paths = [orig_file_path[0] for orig_file_path in orig_file_paths]
+                shutil.copyfile(orig_file_paths[0], os.path.join(current_dir, 'Submission' + lang_to_extension(lang)))
+                for i in range(1, len(orig_file_paths)):
+                    shutil.copyfile(orig_file_paths[0],
+                                    os.path.join(current_dir, 'Submission ' + 'I' * (i + 1) + lang_to_extension(lang)))
+
+        conn.close()
+
     def extract(self, problem, dir_path):
         if problem['paid_only']:
             return
@@ -143,4 +188,4 @@ class Extractor:
 
 if __name__ == '__main__':
     extractor = Extractor()
-    extractor.extract_submissions()
+    extractor.output_submissions()
