@@ -13,7 +13,8 @@ import shutil
 
 class Extractor:
     def __init__(self):
-        self.base_url = 'https://leetcode.com/'
+        self.base_url = 'https://leetcode.com'
+        self.db_name = 'leetcode.db'
         cj = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
         self.opener.addheaders = [
@@ -26,7 +27,8 @@ class Extractor:
     def login(self, user_name, password):
         if self.is_logged_in:
             return
-        with self.opener.open(self.base_url + 'accounts/login/') as f:
+        url = self.base_url + '/accounts/login/'
+        with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
         token = re.findall("name='csrfmiddlewaretoken'\svalue='(.*?)'", content)[0]
         post_data = {
@@ -35,28 +37,38 @@ class Extractor:
             'password': password
         }
         post_data = urllib.parse.urlencode(post_data)
-        self.opener.addheaders.append(('Referer', 'https://leetcode.com/accounts/login/'))
-        with self.opener.open(self.base_url + 'accounts/login/', data=post_data.encode()) as f:
+        self.opener.addheaders.append(('Referer', url))
+        with self.opener.open(url, data=post_data.encode()) as f:
             if f.read().decode().find('Successfully signed in') != -1:
                 self.is_logged_in = True
-                print('Successfully signed in')
+                print('logged in')
             else:
-                print('Failed sign in')
+                print('failed to login in')
         self.opener.addheaders.pop()
 
     def get_problem_list(self):
-        with self.opener.open(self.base_url + 'api/problems/algorithms/') as f:
+        with self.opener.open(self.base_url + '/api/problems/algorithms/') as f:
             content = f.read().decode('utf-8')
         content = json.loads(content)
         return content['stat_status_pairs']
 
     def store_problem_list_to_db(self, problem_list):
-        conn = sqlite3.connect('leetcode.db')
+        conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         c.execute(
-            'CREATE TABLE IF NOT EXISTS problem (id INTEGER,title TEXT,slug TEXT,level INTEGER,paid INTEGER,discuss_id INTEGER,discuss_solution_id INTEGER,PRIMARY KEY(id))')
+            '''
+                CREATE TABLE IF NOT EXISTS problem (
+                    id INTEGER,
+                    title TEXT,
+                    slug TEXT,
+                    level INTEGER,
+                    paid INTEGER,
+                    discuss_id INTEGER,
+                    discuss_solution_id INTEGER,
+                    PRIMARY KEY(id))
+            ''')
         for problem in problem_list:
-            c.execute('INSERT OR IGNORE INTO problem (id,title,slug,level,paid) VALUES (?,?,?,?,?)'
+            c.execute('INSERT OR IGNORE INTO problem (id, title, slug, level, paid) VALUES (?, ?, ?, ?, ?)'
                       , (problem['stat']['question_id'], problem['stat']['question__title']
                          , problem['stat']['question__title_slug'], problem['difficulty']['level'],
                          1 if problem['paid_only'] else 0))
@@ -74,21 +86,26 @@ class Extractor:
         return file_path
 
     def extract_descriptions(self):
-        conn = sqlite3.connect('leetcode.db')
+        conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
-        c.execute('CREATE TABLE IF NOT EXISTS description (title TEXT,path TEXT,PRIMARY KEY(title))')
+        c.execute('CREATE TABLE IF NOT EXISTS description (title TEXT, path TEXT, PRIMARY KEY(title))')
         c.execute(
-            'SELECT a.id,a.title,a.slug FROM problem a LEFT JOIN description b ON a.title=b.title WHERE a.paid=0 AND b.title IS NULL')
+            '''
+                SELECT a.id, a.title, a.slug 
+                FROM problem a 
+                LEFT JOIN description b 
+                ON a.title=b.title 
+                WHERE a.paid=0 AND b.title IS NULL
+            ''')
         problems = c.fetchall()
         dir_path = 'descriptions/'
         os.makedirs(dir_path, exist_ok=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = {
-                executor.submit(self.get_description,
-                                'https://www.leetcode.com/problems/' + problem[2] + '/description/',
-                                os.path.join(dir_path, str(problem[0]).zfill(3) + '. ' + problem[1] + '.html')):
-                    problem[1] for
-                problem in problems}
+                executor.submit(self.get_description
+                                , self.base_url + '/problems/' + problem[2] + '/description/'
+                                , os.path.join(dir_path, str(problem[0]).zfill(3) + '. ' + problem[1] + '.html')):
+                    problem[1] for problem in problems}
             for future in concurrent.futures.as_completed(futures):
                 title = futures[future]
                 try:
@@ -97,7 +114,7 @@ class Extractor:
                     print('%r generated an exception: %s' % (title, e))
                 else:
                     if file_path:
-                        c.execute('INSERT INTO description (title,path) VALUES (?,?)', (title, file_path))
+                        c.execute('INSERT INTO description (title, path) VALUES (?, ?)', (title, file_path))
         conn.commit()
         conn.close()
 
@@ -109,7 +126,7 @@ class Extractor:
         offset = 0
         LIMIT = 100
         while True:
-            url = self.base_url + 'api/submissions/?offset=' + str(offset) + '&limit=' + str(LIMIT)
+            url = self.base_url + '/api/submissions/?offset=' + str(offset) + '&limit=' + str(LIMIT)
             with self.opener.open(url) as f:
                 content = f.read().decode('utf-8')
             content = json.loads(content)
@@ -119,14 +136,23 @@ class Extractor:
             offset += LIMIT
 
     def store_submission_list_to_db(self, submission_list):
-        conn = sqlite3.connect('leetcode.db')
+        conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         c.execute(
-            'CREATE TABLE IF NOT EXISTS submission (lang TEXT,title TEXT,url TEXT,downloaded INTEGER DEFAULT 0,path TEXT,removed INTEGER DEFAULT 0,PRIMARY KEY(url))')
+            '''
+                CREATE TABLE IF NOT EXISTS submission (
+                    lang TEXT,
+                    title TEXT,
+                    url TEXT,
+                    downloaded INTEGER DEFAULT 0,
+                    path TEXT,
+                    removed INTEGER DEFAULT 0,
+                    PRIMARY KEY(url))
+            ''')
         for submission in submission_list:
             if submission['status_display'] == 'Accepted':
-                c.execute('INSERT OR IGNORE INTO submission (lang,title,url) VALUES (?,?,?)',
-                          (submission['lang'], submission['title'], submission['url']))
+                c.execute('INSERT OR IGNORE INTO submission (lang, title, url) VALUES (?, ?, ?)'
+                          , (submission['lang'], submission['title'], submission['url']))
         conn.commit()
         conn.close()
 
@@ -140,7 +166,7 @@ class Extractor:
         return file_path
 
     def extract_submissions(self):
-        conn = sqlite3.connect('leetcode.db')
+        conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         c.execute('SELECT url FROM submission WHERE downloaded=0 AND removed=0')
         urls = c.fetchall()
@@ -148,7 +174,7 @@ class Extractor:
         dir_path = 'submissions/'
         os.makedirs(dir_path, exist_ok=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            futures = {executor.submit(self.get_submission, 'https://www.leetcode.com' + url,
+            futures = {executor.submit(self.get_submission, self.db_name + url,
                                        os.path.join(dir_path, url.split('/')[-2])): url for url in urls}
             for future in concurrent.futures.as_completed(futures):
                 url = futures[future]
@@ -180,7 +206,7 @@ class Extractor:
                 return '.cpp'
 
         os.makedirs(dir_path, exist_ok=True)
-        conn = sqlite3.connect('leetcode.db')
+        conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         c.execute('SELECT title FROM submission WHERE downloaded=1 AND removed=0 GROUP BY title')
         titles = c.fetchall()

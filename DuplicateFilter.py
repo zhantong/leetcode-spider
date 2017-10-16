@@ -17,7 +17,17 @@ def main():
     conn.row_factory = dict_factory
     c = conn.cursor()
     c.execute(
-        'SELECT lang,title,url,path FROM submission a WHERE EXISTS(SELECT 1 FROM submission b WHERE b.downloaded=1 AND b.removed=0 AND a.lang=b.lang AND a.title=b.title GROUP BY lang,title HAVING COUNT(lang)>1) ORDER BY lang,title')
+        '''
+            SELECT lang, title, url, path 
+            FROM submission a 
+            WHERE EXISTS(
+                SELECT 1 
+                FROM submission b 
+                WHERE b.downloaded=1 AND b.removed=0 AND a.lang=b.lang AND a.title=b.title 
+                GROUP BY lang, title 
+                HAVING COUNT(lang)>1) 
+            ORDER BY lang, title
+        ''')
     problems = c.fetchall()
     conn.close()
     return render_template('duplicate.html', problems=problems)
