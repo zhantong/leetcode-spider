@@ -174,7 +174,7 @@ class Extractor:
         dir_path = 'submissions/'
         os.makedirs(dir_path, exist_ok=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            futures = {executor.submit(self.get_submission, self.db_name + url,
+            futures = {executor.submit(self.get_submission, self.base_url + url,
                                        os.path.join(dir_path, url.split('/')[-2])): url for url in urls}
             for future in concurrent.futures.as_completed(futures):
                 url = futures[future]
@@ -188,7 +188,7 @@ class Extractor:
         conn.commit()
         conn.close()
 
-    def output_submissions(self, dir_path='out_submissions/'):
+    def output_submissions(self, dir_path='out_submissions/', latest_only=True):
         def lang_to_language(lang):
             if lang == 'python' or lang == 'python3':
                 return 'Python'
@@ -208,12 +208,20 @@ class Extractor:
         os.makedirs(dir_path, exist_ok=True)
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
-        c.execute('SELECT title FROM submission WHERE downloaded=1 AND removed=0 GROUP BY title')
+        c.execute(
+            '''
+                SELECT problem.id, submission.title 
+                FROM submission 
+                LEFT JOIN problem 
+                    ON submission.title=problem.title 
+                WHERE submission.downloaded=1 AND submission.removed=0 
+                GROUP BY submission.title
+            ''')
         titles = c.fetchall()
-        titles = [title[0] for title in titles]
-        print(titles)
-        for title in titles:
-            problem_dir = os.path.join(dir_path, title)
+        for id, title in titles:
+            if not id:
+                continue
+            problem_dir = os.path.join(dir_path, str(id).zfill(3) + '. ' + title)
             os.makedirs(problem_dir, exist_ok=True)
             c.execute('SELECT lang FROM submission WHERE downloaded=1 AND removed=0 AND title=?', (title,))
             langs = c.fetchall()
@@ -226,10 +234,12 @@ class Extractor:
                     (title, lang))
                 orig_file_paths = c.fetchall()
                 orig_file_paths = [orig_file_path[0] for orig_file_path in orig_file_paths]
-                shutil.copyfile(orig_file_paths[0], os.path.join(current_dir, 'Submission' + lang_to_extension(lang)))
+                shutil.copyfile(orig_file_paths[0], os.path.join(current_dir, 'Solution' + lang_to_extension(lang)))
+                if latest_only:
+                    continue
                 for i in range(1, len(orig_file_paths)):
                     shutil.copyfile(orig_file_paths[0],
-                                    os.path.join(current_dir, 'Submission ' + 'I' * (i + 1) + lang_to_extension(lang)))
+                                    os.path.join(current_dir, 'Solution ' + 'I' * (i + 1) + lang_to_extension(lang)))
 
         conn.close()
 
