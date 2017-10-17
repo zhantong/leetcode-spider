@@ -161,6 +161,7 @@ class Extractor:
             content = f.read().decode('utf-8')
             code = re.findall("submissionCode:\s'(.*?)',", content)[0]
             code = codecs.decode(code, 'unicode-escape')
+            code = code.replace('\r\n', '\n')
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(code)
         return file_path
