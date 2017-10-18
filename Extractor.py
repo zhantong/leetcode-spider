@@ -133,6 +133,9 @@ class Extractor:
         conn = sqlite3.connect(self.db_name)
         conn.row_factory = dict_factory
         c = conn.cursor()
+        c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="description"')
+        if not c.fetchone():
+            return
         c.execute('SELECT title,path FROM description')
         descriptions = c.fetchall()
         for description in descriptions:
@@ -223,6 +226,9 @@ class Extractor:
         conn = sqlite3.connect(self.db_name)
         conn.row_factory = dict_factory
         c = conn.cursor()
+        c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="submission"')
+        if not c.fetchone():
+            return
         c.execute('SELECT url,path FROM submission')
         submissions = c.fetchall()
         for submission in submissions:
