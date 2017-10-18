@@ -9,6 +9,14 @@ import re
 import sqlite3
 import codecs
 import shutil
+import os.path
+
+
+def dict_factory(cursor, row):
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
 
 
 class Extractor:
@@ -75,6 +83,9 @@ class Extractor:
         conn.commit()
         conn.close()
 
+    def update_problem_list(self):
+        self.store_problem_list_to_db(self.get_problem_list())
+
     def get_description(self, url, file_path):
         with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
@@ -118,6 +129,22 @@ class Extractor:
         conn.commit()
         conn.close()
 
+    def sync_description_db_and_file(self):
+        conn = sqlite3.connect(self.db_name)
+        conn.row_factory = dict_factory
+        c = conn.cursor()
+        c.execute('SELECT title,path FROM description')
+        descriptions = c.fetchall()
+        for description in descriptions:
+            if not os.path.exists(description['path']):
+                c.execute('DELETE FROM description WHERE title=?', (description['title'],))
+        conn.commit()
+        conn.close()
+
+    def update_descriptions(self):
+        self.sync_description_db_and_file()
+        self.extract_descriptions()
+
     def get_submission_list(self):
         if not self.is_logged_in:
             print('should login first')
@@ -156,6 +183,9 @@ class Extractor:
         conn.commit()
         conn.close()
 
+    def update_submission_list(self):
+        self.store_submission_list_to_db(self.get_submission_list())
+
     def get_submission(self, url, file_path):
         with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
@@ -188,6 +218,23 @@ class Extractor:
                         c.execute('UPDATE submission SET downloaded=1,path=? WHERE url=?', (file_path, url))
         conn.commit()
         conn.close()
+
+    def sync_submission_db_and_file(self):
+        conn = sqlite3.connect(self.db_name)
+        conn.row_factory = dict_factory
+        c = conn.cursor()
+        c.execute('SELECT url,path FROM submission')
+        submissions = c.fetchall()
+        for submission in submissions:
+            if not os.path.exists(submission['path']):
+                c.execute('DELETE FROM submission WHERE url=?', (submission['url'],))
+        conn.commit()
+        conn.close()
+
+    def update_submissions(self):
+        self.sync_submission_db_and_file()
+        self.update_submission_list()
+        self.extract_submissions()
 
     def output_submissions(self, dir_path='out_submissions/', latest_only=True):
         def lang_to_language(lang):
