@@ -80,7 +80,7 @@ submissions
 extractor.output_submissions()
 ```
 
-导出之前保存的文件为格式化文件结构，保存到out_submissions文件夹下。文件夹结构为：
+导出之前保存的文件为格式化文件结构（默认仅导出每种语言的最新提交版本），保存到out_submissions文件夹下。文件夹结构为：
 
 ```
 out_submissions
