@@ -71,15 +71,29 @@ class Extractor:
                     slug TEXT,
                     level INTEGER,
                     paid INTEGER,
-                    discuss_id INTEGER,
-                    discuss_solution_id INTEGER,
+                    status TEXT,
+                    total_acs INTEGER,
+                    total_submitted INTEGER,
                     PRIMARY KEY(id))
             ''')
+        c.execute('DELETE FROM problem')
         for problem in problem_list:
-            c.execute('INSERT OR IGNORE INTO problem (id, title, slug, level, paid) VALUES (?, ?, ?, ?, ?)'
-                      , (problem['stat']['question_id'], problem['stat']['question__title']
-                         , problem['stat']['question__title_slug'], problem['difficulty']['level'],
-                         1 if problem['paid_only'] else 0))
+            c.execute(
+                '''
+                    INSERT INTO problem 
+                        (id, title, slug, level, paid, status, total_acs, total_submitted) 
+                    VALUES 
+                        (?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (problem['stat']['question_id']
+                 , problem['stat']['question__title']
+                 , problem['stat']['question__title_slug']
+                 , problem['difficulty']['level']
+                 , 1 if problem['paid_only'] else 0
+                 , problem['status']
+                 , problem['stat']['total_acs']
+                 , problem['stat']['total_submitted'])
+            )
         conn.commit()
         conn.close()
 
