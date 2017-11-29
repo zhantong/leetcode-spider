@@ -24,7 +24,8 @@ from Extractor import Extractor
 
 extractor = Extractor()
 
-# 获取问题列表（保存在数据库leetcode.db中）
+# 获取问题列表（保存在数据库leetcode.db中，若希望获取问题状态（是否ac），需首先登录）
+# extractor.login('foo@bar.com', '123456')
 extractor.update_problem_list()
 ```
 

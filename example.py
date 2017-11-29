@@ -2,7 +2,8 @@ from Extractor import Extractor
 
 extractor = Extractor()
 
-# 获取问题列表（保存在数据库leetcode.db中）
+# 获取问题列表（保存在数据库leetcode.db中，若希望获取问题状态（是否ac），需首先登录）
+# extractor.login('foo@bar.com', '123456')
 extractor.update_problem_list()
 
 # 获取问题描述HTML文件（保存在descriptions文件夹下，需要先获取问题列表）
