@@ -31,6 +31,22 @@ extractor.update_problem_list()
 
 获取得到的数据保存在leetcode.db数据库中。
 
+### 导出问题列表
+
+可将问题列表导出为CSV/Excel格式文件，参考下面的截图。
+
+```python
+# 导出问题列表为中文CSV文件
+extractor.save_problem_list('problems.csv')
+
+# 导出问题列表为英文Excel文件
+extractor.save_problem_list('problems.xlsx', 'excel', 'English')
+```
+
+![CSV][csv]
+
+![Excel][excel]
+
 ### 获取问题描述HTML文件
 
 **需先获取问题列表**
@@ -101,3 +117,7 @@ out_submissions
             Solution
     ...
 ```
+
+[csv]: screenshot/csv.png
+
+[excel]: screenshot/excel.png
