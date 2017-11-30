@@ -6,6 +6,12 @@ extractor = Extractor()
 # extractor.login('foo@bar.com', '123456')
 extractor.update_problem_list()
 
+# 导出问题列表为中文CSV文件
+extractor.save_problem_list('problems.csv')
+
+# 导出问题列表为英文Excel文件
+extractor.save_problem_list('problems.xlsx', 'excel', 'English')
+
 # 获取问题描述HTML文件（保存在descriptions文件夹下，需要先获取问题列表）
 extractor.update_descriptions()
 
