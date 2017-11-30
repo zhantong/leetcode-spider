@@ -69,8 +69,8 @@ class Extractor:
                     id INTEGER,
                     title TEXT,
                     slug TEXT,
-                    level INTEGER,
-                    paid INTEGER,
+                    difficulty INTEGER,
+                    paid_only INTEGER,
                     status TEXT,
                     total_acs INTEGER,
                     total_submitted INTEGER,
@@ -81,7 +81,7 @@ class Extractor:
             c.execute(
                 '''
                     INSERT INTO problem 
-                        (id, title, slug, level, paid, status, total_acs, total_submitted) 
+                        (id, title, slug, difficulty, paid_only, status, total_acs, total_submitted) 
                     VALUES 
                         (?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
@@ -99,6 +99,13 @@ class Extractor:
 
     def update_problem_list(self):
         self.store_problem_list_to_db(self.get_problem_list())
+
+    def get_problem_list_from_db(self):
+        conn = sqlite3.connect(self.db_name)
+        conn.row_factory = dict_factory
+        c = conn.cursor()
+        c.execute('SELECT * FROM problem')
+        return c.fetchall()
 
     def get_description(self, url, file_path):
         with self.opener.open(url) as f:
@@ -310,6 +317,170 @@ class Extractor:
                                     os.path.join(current_dir, 'Solution ' + 'I' * (i + 1) + lang_to_extension(lang)))
 
         conn.close()
+
+    def save_problem_list(self, file_name, file_type='csv', language='Chinese'):
+        def preprocess(problem_list):
+            for problem in problem_list:
+                problem['acceptance'] = problem['total_acs'] / problem['total_submitted']
+                problem['status'] = problem['status'] == 'ac'
+
+        def to_locale(problem_list, language_dict):
+            problem_list = [{language_dict[key]: value for (key, value) in problem.items()} for problem in problem_list]
+
+            for problem in problem_list:
+                problem[language_dict['difficulty']] = language_dict['level'][problem[language_dict['difficulty']]]
+                problem[language_dict['paid_only']] = language_dict['bool'][problem[language_dict['paid_only']]]
+                problem[language_dict['status']] = language_dict['bool'][problem[language_dict['status']]]
+            return problem_list
+
+        problem_list = self.get_problem_list_from_db()
+        preprocess(problem_list)
+        language_dict = self.get_language_dict(language)
+        problem_list = to_locale(problem_list, language_dict)
+        if file_type == 'csv':
+            self.save_problem_list_as_csv(problem_list, file_name)
+        elif file_type == 'excel':
+            self.save_problem_list_as_excel(problem_list, file_name, language_dict)
+
+    def save_problem_list_as_csv(self, problem_list, file_name):
+        with open(file_name, 'w', encoding='utf-8', newline='') as f:
+            import csv
+            writer = csv.DictWriter(f, fieldnames=problem_list[0].keys())
+            writer.writeheader()
+            writer.writerows(problem_list)
+
+    def save_problem_list_as_excel(self, problem_list, file_name, language_dict):
+        from openpyxl import Workbook
+        from openpyxl.styles import NamedStyle
+        from openpyxl.formatting.rule import CellIsRule, DataBarRule
+        from openpyxl.styles import PatternFill
+
+        def format_cell_style(ws, language_dict):
+            style_int = NamedStyle('int')
+            style_int.number_format = '0'
+            style_str = NamedStyle('str')
+            style_str.number_format = '@'
+            style_pcnt = NamedStyle('pcnt')
+            style_pcnt.number_format = '0.0%'
+            for cell in ws[column_index[language_dict['id']]][1:]:
+                cell.style = style_int
+            for cell in ws[column_index[language_dict['total_submitted']]][1:]:
+                cell.style = style_int
+            for cell in ws[column_index[language_dict['total_acs']]][1:]:
+                cell.style = style_int
+            for cell in ws[column_index[language_dict['title']]][1:]:
+                cell.style = style_str
+            for cell in ws[column_index[language_dict['slug']]][1:]:
+                cell.style = style_str
+            for cell in ws[column_index[language_dict['difficulty']]][1:]:
+                cell.style = style_str
+            for cell in ws[column_index[language_dict['paid_only']]][1:]:
+                cell.style = style_str
+            for cell in ws[column_index[language_dict['status']]][1:]:
+                cell.style = style_str
+            for cell in ws[column_index[language_dict['acceptance']]][1:]:
+                cell.style = style_pcnt
+
+        def conditional_formatting(ws, language_dict):
+            def get_entire_column(index):
+                return index + '1:' + index + '1048576'
+
+            red_color = 'ffc7ce'
+            green_color = 'c2efcf'
+            yellow_color = 'ffeba2'
+
+            red_fill = PatternFill(start_color=red_color, end_color=red_color, fill_type='solid')
+            green_fill = PatternFill(start_color=green_color, end_color=green_color, fill_type='solid')
+            yellow_fill = PatternFill(start_color=yellow_color, end_color=yellow_color, fill_type='solid')
+
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['difficulty']]),
+                                          CellIsRule(operator='equal', formula=['"' + language_dict['level'][1] + '"'],
+                                                     stopIfTrue=False, fill=green_fill))
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['difficulty']]),
+                                          CellIsRule(operator='equal', formula=['"' + language_dict['level'][2] + '"'],
+                                                     stopIfTrue=False, fill=yellow_fill))
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['difficulty']]),
+                                          CellIsRule(operator='equal', formula=['"' + language_dict['level'][3] + '"'],
+                                                     stopIfTrue=False, fill=red_fill))
+
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['paid_only']]),
+                                          CellIsRule(operator='equal',
+                                                     formula=['"' + language_dict['bool'][False] + '"'],
+                                                     stopIfTrue=False, fill=green_fill))
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['paid_only']]),
+                                          CellIsRule(operator='equal',
+                                                     formula=['"' + language_dict['bool'][True] + '"'],
+                                                     stopIfTrue=False, fill=red_fill))
+
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['status']]),
+                                          CellIsRule(operator='equal',
+                                                     formula=['"' + language_dict['bool'][False] + '"'],
+                                                     stopIfTrue=False, fill=red_fill))
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['status']]),
+                                          CellIsRule(operator='equal',
+                                                     formula=['"' + language_dict['bool'][True] + '"'],
+                                                     stopIfTrue=False, fill=green_fill))
+
+            ws.conditional_formatting.add(get_entire_column(column_index[language_dict['acceptance']]),
+                                          DataBarRule(start_type='percentile', start_value=0, end_type='percentile',
+                                                      end_value=100, color="FF638EC6", showValue='None'))
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(tuple(problem_list[0].keys()))
+        column_index = {item.value: item.column for item in ws[1]}
+        rows = [{column_index[key]: value for (key, value) in problem.items()} for problem in problem_list]
+        for row in rows:
+            ws.append(row)
+        format_cell_style(ws, language_dict)
+        conditional_formatting(ws, language_dict)
+        wb.save(file_name)
+
+    def get_language_dict(self, language):
+        language_dict = None
+        if language == 'Chinese':
+            language_dict = {
+                'id': '题号',
+                'title': '标题',
+                'slug': '链接',
+                'difficulty': '难度',
+                'total_submitted': '总提交数',
+                'total_acs': '总通过数',
+                'acceptance': '通过率',
+                'paid_only': '付费',
+                'status': '已解决',
+                'level': {
+                    1: '简单',
+                    2: '中等',
+                    3: '难'
+                },
+                'bool': {
+                    True: '是',
+                    False: '否'
+                }
+            }
+        elif language == 'English':
+            language_dict = {
+                'id': '#',
+                'title': 'Title',
+                'slug': 'Link',
+                'difficulty': 'Difficulty',
+                'total_submitted': 'Total Submitted',
+                'total_acs': 'Total Accepted',
+                'acceptance': 'Acceptance',
+                'paid_only': 'Paid Only',
+                'status': 'Solved',
+                'level': {
+                    1: 'Easy',
+                    2: 'Medium',
+                    3: 'Hard'
+                },
+                'bool': {
+                    True: 'Yes',
+                    False: 'No'
+                }
+            }
+        return language_dict
 
 
 if __name__ == '__main__':
