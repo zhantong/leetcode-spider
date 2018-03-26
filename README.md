@@ -18,6 +18,15 @@ Python实现的LeetCode爬虫。爬取LeetCode题目描述和提交的代码。
 
 使用`git clone`或直接下载本仓库代码，并切换工作目录到本项目根目录
 
+### 安装依赖
+
+本项目需要用到第三方库`lxml`和`openpyxl`（如果需要保存为Excel），可通过如下`pip`命令安装：
+
+```bash
+pip3 install lxml
+pip3 install openpyxl
+```
+
 ### 获取问题列表（必须）
 
 ```python
