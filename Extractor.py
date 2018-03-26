@@ -127,7 +127,7 @@ class Extractor:
                 FROM problem a 
                 LEFT JOIN description b 
                 ON a.title=b.title 
-                WHERE a.paid=0 AND b.title IS NULL
+                WHERE a.paid_only=0 AND b.title IS NULL
             ''')
         problems = c.fetchall()
         dir_path = 'descriptions/'
