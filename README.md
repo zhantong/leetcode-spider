@@ -128,6 +128,11 @@ out_submissions
     ...
 ```
 
+## 第三方依赖
+
+- [lxml](http://lxml.de/)
+- [openpyxl](https://openpyxl.readthedocs.io/)
+
 [csv]: screenshot/csv.png
 
 [excel]: screenshot/excel.png
