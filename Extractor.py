@@ -107,6 +107,88 @@ class Extractor:
         c.execute('SELECT * FROM problem')
         return c.fetchall()
 
+    def get_question_detail(self, title_slug):
+        QUERY = '''query getQuestionDetail($titleSlug: String!) {
+  isCurrentUserAuthenticated
+  question(titleSlug: $titleSlug) {
+    questionId
+    questionFrontendId
+    questionTitle
+    translatedTitle
+    questionTitleSlug
+    content
+    translatedContent
+    difficulty
+    stats
+    contributors
+    similarQuestions
+    discussUrl
+    mysqlSchemas
+    randomQuestionUrl
+    sessionId
+    categoryTitle
+    submitUrl
+    interpretUrl
+    codeDefinition
+    sampleTestCase
+    enableTestMode
+    metaData
+    enableRunCode
+    enableSubmit
+    judgerAvailable
+    infoVerified
+    envInfo
+    urlManager
+    article
+    questionDetailUrl
+    discussCategoryId
+    discussSolutionCategoryId
+    libraryUrl
+    companyTags {
+      name
+      slug
+      translatedName
+    }
+    topicTags {
+      name
+      slug
+      translatedName
+    }
+  }
+  interviewed {
+    interviewedUrl
+    companies {
+      id
+      name
+      slug
+    }
+    timeOptions {
+      id
+      name
+    }
+    stageOptions {
+      id
+      name
+    }
+  }
+  subscribeUrl
+  isPremium
+  loginUrl
+}'''
+        params = {
+            'query': QUERY,
+            'operationName': 'getQuestionDetail',
+            'variables': json.dumps({
+                'titleSlug': title_slug
+            })
+        }
+        url = self.base_url + '/graphql' + '?' + urllib.parse.urlencode(params, quote_via=urllib.parse.quote).replace(
+            '%28', '(').replace('%29', ')').replace('%21', '!')
+        with self.opener.open(url) as f:
+            content = f.read().decode('utf-8')
+            content=json.loads(content)
+            return content['data']['question']
+
     def get_description(self, url, file_path):
         with self.opener.open(url) as f:
             content = f.read().decode('utf-8')
@@ -485,4 +567,5 @@ class Extractor:
 
 if __name__ == '__main__':
     extractor = Extractor()
-    extractor.extract_descriptions()
+    result=extractor.get_question_detail('merge-two-sorted-lists')
+    print(result)
